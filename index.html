@@ -275,7 +275,7 @@
   <div class="panel-nav-group" id="info-nav">
     <a id="info-nav-google" class="nav-btn btn-google" href="#" target="_blank" onclick="vibe()">Google 導航</a>
     <a id="info-nav-apple" class="nav-btn btn-apple" href="#" target="_blank" onclick="vibe()">Apple Maps</a>
-    <a id="info-nav-tccfd" class="nav-btn btn-tccfd" href="#" target="_blank" onclick="vibe()">🚒 局端查察圖</a>
+    <a id="info-nav-tccfd" class="nav-btn btn-tccfd" href="#" target="_blank" onclick="vibe()">💦 局端查察圖</a>
   </div>
   <div id="info-body"></div>
 </div>
@@ -690,7 +690,7 @@ function renderSuggestions(results, localMatches = []) {
   suggestionsBox.innerHTML = '';
   localMatches.forEach(item => {
     const div = document.createElement('div'); div.className = 'suggestion-item';
-    div.innerHTML = `<div class="suggestion-title">🚒 ${item.displayNo}</div><div class="suggestion-subtitle">${item.properties['設置地址']||'無地址'}</div>`;
+    div.innerHTML = `<div class="suggestion-title">💦 ${item.displayNo}</div><div class="suggestion-subtitle">${item.properties['設置地址']||'無地址'}</div>`;
     div.addEventListener('click', () => { vibe(); searchInput.value = item.displayNo; searchInput.blur(); suggestionsBox.style.display = 'none'; focusAndShowPoint(item.originalIndex); });
     suggestionsBox.appendChild(div);
   });
