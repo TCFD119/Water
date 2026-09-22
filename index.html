@@ -167,13 +167,12 @@
     #route-panel {
       position: fixed; bottom: calc(100px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%);
       background: rgba(255, 255, 255, 0.95); backdrop-filter: saturate(180%) blur(20px);
-      border-radius: 24px; padding: 10px 16px; display: none; gap: 10px; align-items: center; z-index: 750;
+      border-radius: 24px; padding: 10px 16px; display: none; gap: 12px; align-items: center; z-index: 750;
       box-shadow: 0 8px 24px rgba(0,0,0,0.15); border: 1px solid rgba(0,0,0,0.08); white-space: nowrap;
     }
     .route-btn { background: none; border: none; font-weight: 700; color: #1c1c1e; cursor: pointer; font-size: 14px; }
     .route-btn-clear { background: none; border: none; font-weight: 700; color: #ff3b30; cursor: pointer; font-size: 14px; }
     .route-btn-done { background: #007aff; color: #fff; border: none; border-radius: 14px; padding: 6px 14px; font-weight: 700; cursor: pointer; font-size: 14px; }
-    .route-btn-gmap { background: #34c759; color: #fff; border: none; border-radius: 14px; padding: 6px 14px; font-weight: 700; cursor: pointer; font-size: 14px; text-decoration: none; display: inline-flex; align-items: center; }
 
     body.dark-mode { background: #000; color: #f2f2f7; }
     body.dark-mode .glass-panel { background: rgba(28, 28, 30, 0.88); border-color: rgba(255, 255, 255, 0.1); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4); }
@@ -241,7 +240,6 @@
   <div style="width:1px; height:20px; background:rgba(0,0,0,0.1);"></div>
   <button class="route-btn" onclick="vibe(); undoRoute()">復原</button>
   <button class="route-btn-clear" onclick="vibe(); clearRoute()">清除</button>
-  <a id="route-gmap-btn" class="route-btn-gmap" href="#" target="_blank" onclick="vibe()" style="display:none;">🧭 Google 導航</a>
   <button class="route-btn-done" onclick="vibe(); toggleRouteMode()">完成</button>
 </div>
 
@@ -264,7 +262,7 @@
   </div>
 </div>
 
-<!-- 乾淨版資訊抽屜 -->
+<!-- 乾淨版資訊抽屜 (移除局端連線/照片) -->
 <div id="info-panel" class="bottom-sheet glass-panel">
   <div class="sheet-drag-handle" id="info-drag"></div>
   <div class="panel-top">
@@ -319,6 +317,7 @@ const map = L.map('map', {
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 
 const layerLight = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_25x4_1_dba3c60e71a1bf4a15dd3069';
+const layerSat = 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}'; 
 let currentTileLayer = L.tileLayer(layerLight, { attribution: '© OpenStreetMap contributors', maxZoom: 20 }).addTo(map);
 
 let routePolyline = L.polyline([], { 
@@ -514,25 +513,6 @@ function clearRoute() {
 function updateRouteDraw() {
     routePolyline.setLatLngs(routePoints);
     document.getElementById('route-counter').textContent = `${routePoints.length} 支`;
-    
-    const gmapBtn = document.getElementById('route-gmap-btn');
-    if (routePoints.length >= 2) {
-        const origin = `${routePoints[0].lat},${routePoints[0].lng}`;
-        const destination = `${routePoints[routePoints.length - 1].lat},${routePoints[routePoints.length - 1].lng}`;
-        let waypointsStr = '';
-        if (routePoints.length > 2) {
-            const midPoints = routePoints.slice(1, routePoints.length - 1).map(pt => `${pt.lat},${pt.lng}`);
-            waypointsStr = `&waypoints=${midPoints.join('|')}`;
-        }
-        gmapBtn.href = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypointsStr}&travelmode=driving`;
-        gmapBtn.style.display = 'inline-flex';
-    } else if (routePoints.length === 1) {
-        const dest = `${routePoints[0].lat},${routePoints[0].lng}`;
-        gmapBtn.href = `https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`;
-        gmapBtn.style.display = 'inline-flex';
-    } else {
-        gmapBtn.style.display = 'none';
-    }
 }
 
 function highlightMarker(latlng) {
