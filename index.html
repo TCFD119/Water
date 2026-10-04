@@ -251,7 +251,8 @@
   </div>
   
   <div style="padding: 6px 16px 12px; display:flex; gap:8px;">
-    <input type="text" id="task-filter-input" placeholder="過濾編號或地址..." oninput="renderTaskList()" style="flex:1; padding:10px 14px; border-radius:14px; border:1px solid rgba(0,0,0,0.1); background:#f2f2f7; font-size:14px; outline:none; font-weight:600; color:#1c1c1e;">
+    <!-- ⭐ 修改了 placeholder 提示文字 -->
+    <input type="text" id="task-filter-input" placeholder="過濾編號、地址或地上/地下..." oninput="renderTaskList()" style="flex:1; padding:10px 14px; border-radius:14px; border:1px solid rgba(0,0,0,0.1); background:#f2f2f7; font-size:14px; outline:none; font-weight:600; color:#1c1c1e;">
     <button onclick="clearTaskSelection()" style="background:rgba(255,59,48,0.1); border:none; padding:0 16px; border-radius:14px; font-weight:800; color:#ff3b30; cursor:pointer;">清空</button>
   </div>
   
@@ -408,7 +409,7 @@ async function loadHydrantData() {
     const rows = parseCSV(csvText.trim());
     
     if (rows.length >= 2) {
-      const headers = rows[0].map(h => h.replace(/^﻿/, '').replace(/^"/, '').replace(/"$/, '').trim());
+      const headers = rows[0].map(h => h.replace(/^﻿﻿/, '').replace(/^"/, '').replace(/"$/, '').trim());
       const latIdx = headers.indexOf('緯度'), lngIdx = headers.indexOf('經度');
       
       for (let i = 1; i < rows.length; i++) {
@@ -552,7 +553,12 @@ function renderTaskList() {
   allPoints.forEach(pt => {
     let id = pt.displayNo.toLowerCase();
     let addr = (pt.properties['設置地址'] || pt.properties['消防栓位置'] || '').toLowerCase();
-    if (filterText && !id.includes(filterText) && !addr.includes(filterText)) return;
+    
+    // ⭐ 新增: 判斷地上或地下式字串
+    let typeStr = pt.type === 'below' ? '地下式' : '地上式';
+    
+    // ⭐ 修改: 過濾條件加入 typeStr 判斷，只要包含關鍵字就能篩出來
+    if (filterText && !id.includes(filterText) && !addr.includes(filterText) && !typeStr.includes(filterText)) return;
     
     matchCount++;
     let isSelected = tempSelectedTasks.has(pt.originalIndex);
@@ -569,10 +575,16 @@ function renderTaskList() {
         updateTaskApplyBtn();
     };
     
+    let typeLabel = pt.type === 'below' ? '地下式' : '地上式';
+    let typeColor = pt.type === 'below' ? '#f39c12' : '#e74c3c';
+    
     div.innerHTML = `
         <div class="task-checkbox"></div>
         <div class="task-info">
-            <div class="task-no">${pt.displayNo}</div>
+            <div class="task-no">
+                ${pt.displayNo}
+                <span style="font-size: 13px; color: ${typeColor}; font-weight: 700; margin-left: 4px;">(${typeLabel})</span>
+            </div>
             <div class="task-addr">${pt.properties['設置地址'] || pt.properties['消防栓位置'] || '無地址資訊'}</div>
         </div>
         <div class="task-locate-btn" onclick="locateTaskPt(event, ${pt.originalIndex})">📍 定位</div>
@@ -704,6 +716,7 @@ function focusAndShowPoint(idx) {
   focusMap(pt.latlng, 17, 0.22);
 }
 
+// ⭐ 將原本的 fetchSuggestions 替換為 Google Apps Script 版本
 async function fetchSuggestions(query) {
   const localMatches = allPoints.filter(pt => {
     return pt.displayNo.toLowerCase().includes(query.toLowerCase()) || 
@@ -711,14 +724,31 @@ async function fetchSuggestions(query) {
   }).slice(0, 4);
 
   let searchQuery = query;
-  if (!searchQuery.includes('台中') && !searchQuery.includes('臺中') && !searchQuery.includes('市')) searchQuery = '台中市' + searchQuery;
+  if (!searchQuery.includes('台中') && !searchQuery.includes('臺中') && !searchQuery.includes('市')) {
+    searchQuery = '台中市' + searchQuery;
+  }
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2500);
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&countrycodes=tw&limit=3&addressdetails=1`, { headers: { 'Accept-Language': 'zh-TW' }, signal: controller.signal });
-    clearTimeout(timeoutId);
-    renderSuggestions(await res.json(), localMatches);
+    const gasUrl = 'https://script.google.com/macros/s/AKfycbyUNnMF0Yuv1ohajGJbij7SjfcJRaWP9QalvY-_P_fMwqawWeLzOX1n7KD3yZiYTk7Qkg/exec';
+    const res = await fetch(`${gasUrl}?q=${encodeURIComponent(searchQuery)}`);
+    const data = await res.json();
+    
+    if (data.status !== 'OK' || !data.results || data.results.length === 0) {
+      if (localMatches.length > 0) renderSuggestions([], localMatches);
+      else suggestionsBox.style.display = 'none';
+      return;
+    }
+
+    const formattedData = data.results.slice(0, 5).map(item => {
+      let title = item.formatted_address.replace(/^台灣/, '').trim(); 
+      return {
+        display_name: title + ", Google Maps 精準定位", 
+        lat: item.geometry.location.lat,
+        lon: item.geometry.location.lng
+      };
+    });
+
+    renderSuggestions(formattedData, localMatches);
   } catch (err) {
     if (localMatches.length > 0) renderSuggestions([], localMatches);
     else suggestionsBox.style.display = 'none';
@@ -744,7 +774,7 @@ function renderSuggestions(results, localMatches = []) {
       closeInfo();
       if(searchAddressPin) map.removeLayer(searchAddressPin);
       searchAddressPin = L.marker([lat, lng]).addTo(map);
-      focusMap([lat, lng], 17); showStatus(`已定位地址`, 3000);
+      focusMap([lat, lng], 17); showStatus(`已為您精準定位地址`, 3000);
     });
     suggestionsBox.appendChild(div);
   });
@@ -753,6 +783,7 @@ function renderSuggestions(results, localMatches = []) {
 
 document.addEventListener('click', e => { if (searchInput && !searchInput.contains(e.target) && !suggestionsBox.contains(e.target)) suggestionsBox.style.display = 'none'; });
 
+// ⭐ 將原本的 doSearch 替換為 Google Apps Script 版本
 async function doSearch() {
   let q = document.getElementById('search-input').value.trim(); 
   if (!q) return;
@@ -761,17 +792,27 @@ async function doSearch() {
   if (localMatch) { searchInput.blur(); focusAndShowPoint(localMatch.originalIndex); showStatus(`已為您定位：${localMatch.displayNo}`, 3000); return; }
 
   if (!q.includes('台中') && !q.includes('臺中') && !q.includes('市')) q = '台中市' + q;
-  showStatus('搜尋中…', 0); searchInput.blur(); closeInfo();
+  showStatus('Google 精準定位中…', 0); searchInput.blur(); closeInfo();
   
   try {
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=tw&limit=1`, { headers: { 'Accept-Language': 'zh-TW' } });
+    const gasUrl = 'https://script.google.com/macros/s/AKfycbyUNnMF0Yuv1ohajGJbij7SjfcJRaWP9QalvY-_P_fMwqawWeLzOX1n7KD3yZiYTk7Qkg/exec';
+    const res = await fetch(`${gasUrl}?q=${encodeURIComponent(q)}`);
     const data = await res.json();
-    if (!data.length) { showStatus('找不到該地址', 3000); return; }
-    const lat = parseFloat(data[0].lat), lng = parseFloat(data[0].lon); 
+    
+    if (data.status !== 'OK' || !data.results || data.results.length === 0) { 
+      showStatus('找不到該地址', 3000); 
+      return; 
+    }
+
+    const lat = parseFloat(data.results[0].geometry.location.lat);
+    const lng = parseFloat(data.results[0].geometry.location.lng); 
+    
     if(searchAddressPin) map.removeLayer(searchAddressPin);
     searchAddressPin = L.marker([lat, lng]).addTo(map);
-    focusMap([lat, lng], 17); showStatus(`已為您定位`, 3000);
-  } catch (err) { showStatus('搜尋連線異常', 3000); }
+    focusMap([lat, lng], 17); showStatus(`已為您精準定位`, 3000);
+  } catch (err) { 
+    showStatus('搜尋連線異常', 3000); 
+  }
 }
 
 function clearSearch() { 
